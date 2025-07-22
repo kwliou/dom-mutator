@@ -460,4 +460,239 @@ describe('mutate', () => {
     await sleep();
     expect(document.body.innerHTML).toEqual(initial);
   });
+
+  it('can revert multiple repositioning on the same element', async () => {
+    const initial =
+      '<div class="main">' +
+      '<div class="foo"><div class="bar">1</div></div>' +
+      '<div class="foo"><div class="bar">2</div></div>' +
+      '<div class="foo"><div class="bar">3</div></div>' +
+      '</div>';
+    document.body.innerHTML = initial;
+
+    const m1: DeclarativeMutation = {
+      selector: '.foo:nth-child(1)',
+      action: 'set',
+      attribute: 'position',
+      parentSelector: '.foo:nth-child(2)',
+      insertBeforeSelector: '.foo:nth-child(2) .bar',
+    };
+
+    cleanup(mutate.declarative(m1));
+    await sleep();
+
+    expect(document.body.innerHTML).toEqual(
+      '<div class="main">' +
+        '<div class="foo"><div class="foo"><div class="bar">1</div></div><div class="bar">2</div></div>' +
+        '<div class="foo"><div class="bar">3</div></div>' +
+        '</div>'
+    );
+
+    const m2: DeclarativeMutation = {
+      selector: '.foo > .foo',
+      action: 'set',
+      attribute: 'position',
+      parentSelector: '.main',
+      insertBeforeSelector: '.foo:nth-child(2)',
+    };
+
+    const contr2 = mutate.declarative(m2);
+    cleanup(contr2);
+    await sleep();
+
+    expect(document.body.innerHTML).toEqual(
+      '<div class="main">' +
+        '<div class="foo"><div class="bar">2</div></div>' +
+        '<div class="foo"><div class="bar">1</div></div>' +
+        '<div class="foo"><div class="bar">3</div></div>' +
+        '</div>'
+    );
+
+    contr2.revert();
+    await sleep();
+
+    expect(document.body.innerHTML).toEqual(
+      '<div class="main">' +
+        '<div class="foo"><div class="foo"><div class="bar">1</div></div><div class="bar">2</div></div>' +
+        '<div class="foo"><div class="bar">3</div></div>' +
+        '</div>'
+    );
+  });
+
+  it('can revert mutations out of order', async () => {
+    const initial =
+      '<div class="main">' +
+      '<div class="foo"><div class="bar">1</div></div>' +
+      '<div class="foo"><div class="bar">2</div></div>' +
+      '<div class="foo"><div class="bar">3</div></div>' +
+      '</div>';
+    document.body.innerHTML = initial;
+
+    const m1: DeclarativeMutation = {
+      selector: '.foo:nth-child(1)',
+      action: 'set',
+      attribute: 'position',
+      parentSelector: '.foo:nth-child(2)',
+      insertBeforeSelector: '.foo:nth-child(2) .bar',
+    };
+
+    const contr1 = mutate.declarative(m1);
+    cleanup(contr1);
+    await sleep();
+
+    expect(document.body.innerHTML).toEqual(
+      '<div class="main">' +
+        '<div class="foo"><div class="foo"><div class="bar">1</div></div><div class="bar">2</div></div>' +
+        '<div class="foo"><div class="bar">3</div></div>' +
+        '</div>'
+    );
+
+    const m2: DeclarativeMutation = {
+      selector: '.foo > .foo',
+      action: 'set',
+      attribute: 'position',
+      parentSelector: '.main',
+      insertBeforeSelector: '.foo:nth-child(2)',
+    };
+
+    cleanup(mutate.declarative(m2));
+    await sleep();
+
+    expect(document.body.innerHTML).toEqual(
+      '<div class="main">' +
+        '<div class="foo"><div class="bar">2</div></div>' +
+        '<div class="foo"><div class="bar">1</div></div>' +
+        '<div class="foo"><div class="bar">3</div></div>' +
+        '</div>'
+    );
+
+    const m3: DeclarativeMutation = {
+      selector: '.foo:nth-child(3) .bar',
+      action: 'set',
+      attribute: 'position',
+      parentSelector: '.main',
+      insertBeforeSelector: '.foo:nth-child(1)',
+    };
+
+    cleanup(mutate.declarative(m3));
+    await sleep();
+
+    expect(document.body.innerHTML).toEqual(
+      '<div class="main">' +
+        '<div class="bar">3</div>' +
+        '<div class="foo"><div class="bar">2</div></div>' +
+        '<div class="foo"><div class="bar">1</div></div>' +
+        '<div class="foo"></div>' +
+        '</div>'
+    );
+
+    contr1.revert();
+    await sleep();
+
+    // we expect no change because that same element is still being moved by m2
+    expect(document.body.innerHTML).toEqual(
+      '<div class="main">' +
+        '<div class="bar">3</div>' +
+        '<div class="foo"><div class="bar">2</div></div>' +
+        '<div class="foo"><div class="bar">1</div></div>' +
+        '<div class="foo"></div></div>'
+    );
+  });
+
+  it('can handle identical mutations', async () => {
+    const initial =
+      '<div class="main">' +
+      '<div class="foo">1</div>' +
+      '<div class="foo">2</div>' +
+      '<div class="foo">3</div>' +
+      '</div>';
+    document.body.innerHTML = initial;
+
+    const m1: DeclarativeMutation = {
+      selector: '.main > .foo:nth-child(1)',
+      action: 'set',
+      attribute: 'position',
+      parentSelector: '.main > .foo:nth-child(2)',
+    };
+
+    cleanup(mutate.declarative(m1));
+    await sleep();
+
+    expect(document.body.innerHTML).toEqual(
+      '<div class="main">' +
+        '<div class="foo">2<div class="foo">1</div></div>' +
+        '<div class="foo">3</div>' +
+        '</div>'
+    );
+
+    cleanup(mutate.declarative(m1));
+    await sleep();
+
+    expect(document.body.innerHTML).toEqual(
+      '<div class="main">' +
+        '<div class="foo">3' +
+        '<div class="foo">2<div class="foo">1</div></div>' +
+        '</div></div>'
+    );
+  });
+
+  it('can revert dependent mutations out of order', async () => {
+    const initial =
+      '<div class="main">' +
+      '<div class="foo"><div class="bar">1</div></div>' +
+      '<div class="foo"><div class="bar">2</div></div>' +
+      '<div class="foo"><div class="bar">3</div></div>' +
+      '</div>';
+    document.body.innerHTML = initial;
+
+    const m1: DeclarativeMutation = {
+      selector: '.main > .foo:nth-child(1)',
+      action: 'set',
+      attribute: 'position',
+      parentSelector: 'body',
+      insertBeforeSelector: '.main',
+    };
+
+    const contr1 = mutate.declarative(m1);
+    cleanup(contr1);
+    await sleep();
+
+    expect(document.body.innerHTML).toEqual(
+      '<div class="foo"><div class="bar">1</div></div>' +
+        '<div class="main">' +
+        '<div class="foo"><div class="bar">2</div></div>' +
+        '<div class="foo"><div class="bar">3</div></div>' +
+        '</div>'
+    );
+
+    const m2: DeclarativeMutation = {
+      selector: '.main > .foo:nth-child(1)',
+      action: 'set',
+      attribute: 'position',
+      parentSelector: '.main',
+    };
+
+    const contr2 = mutate.declarative(m2);
+    cleanup(contr2);
+    await sleep();
+
+    expect(document.body.innerHTML).toEqual(
+      '<div class="foo"><div class="bar">1</div></div>' +
+        '<div class="main">' +
+        '<div class="foo"><div class="bar">3</div></div>' +
+        '<div class="foo"><div class="bar">2</div></div>' +
+        '</div>'
+    );
+
+    contr1.revert();
+    await sleep();
+
+    expect(document.body.innerHTML).toEqual(
+      '<div class="main">' +
+        '<div class="foo"><div class="bar">1</div></div>' +
+        '<div class="foo"><div class="bar">3</div></div>' +
+        '<div class="foo"><div class="bar">2</div></div>' +
+        '</div>'
+    );
+  });
 });

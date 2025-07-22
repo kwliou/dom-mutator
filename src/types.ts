@@ -22,6 +22,7 @@ interface AttrMutation extends BaseMutation {
 interface PositionMutation extends BaseMutation {
   kind: 'position';
   mutate: () => ElementPosition;
+  newPosition?: ElementPositionWithDomNode | null;
 }
 
 interface ElementPosition {
@@ -72,3 +73,21 @@ interface ElementRecord {
   };
   position?: PositionRecord;
 }
+
+export {
+  BaseMutation,
+  HTMLMutation,
+  ClassnameMutation,
+  AttrMutation,
+  PositionMutation,
+  ElementPosition,
+  ElementPositionWithDomNode,
+  Mutation,
+  MutationKind,
+  ElementPropertyRecord,
+  HTMLRecord,
+  ClassnameRecord,
+  AttributeRecord,
+  PositionRecord,
+  ElementRecord,
+};

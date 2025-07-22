@@ -1,10 +1,26 @@
+import {
+  ElementRecord,
+  HTMLRecord,
+  ClassnameRecord,
+  AttributeRecord,
+  PositionRecord,
+  ElementPropertyRecord,
+  Mutation,
+  HTMLMutation,
+  ClassnameMutation,
+  AttrMutation,
+  PositionMutation,
+  ElementPosition,
+  ElementPositionWithDomNode,
+} from './types';
+
 export const validAttributeName = /^[a-zA-Z:_][a-zA-Z0-9:_.-]*$/;
 const nullController: MutationController = {
   revert: () => {},
 };
 
 const elements: Map<Element, ElementRecord> = new Map();
-const mutations: Set<Mutation> = new Set();
+const mutations: Mutation[] = [];
 
 function getObserverInit(attr: string): MutationObserverInit {
   return attr === 'html'
@@ -163,11 +179,24 @@ function _loadDOMNodes({
 
 function positionMutationRunner(record: PositionRecord) {
   let val = record.originalValue;
-  record.mutations.forEach(m => {
-    const selectors = m.mutate();
-    const newNodes = _loadDOMNodes(selectors);
-    val = newNodes || val;
-  });
+  for (let i = record.mutations.length - 1; i >= 0; i--) {
+    const m = record.mutations[i];
+    if (
+      !m.newPosition ||
+      !m.newPosition.parentNode.isConnected ||
+      m.newPosition.insertBeforeNode?.isConnected === false
+    ) {
+      const selectors = m.mutate();
+      const newNodes = _loadDOMNodes(selectors);
+      m.newPosition = newNodes;
+    }
+
+    if (m.newPosition) {
+      val = m.newPosition;
+      break;
+    }
+  }
+
   queueIfNeeded(val, record);
 }
 
@@ -346,7 +375,7 @@ function stopMutating(mutation: Mutation, el: Element) {
 function refreshElementsSet(mutation: Mutation) {
   // if a position mutation has already found an element to move, don't move
   // any more elements
-  if (mutation.kind === 'position' && mutation.elements.size === 1) return;
+  if (mutation.kind === 'position' && mutation.elements.size > 0) return;
 
   const existingElements = new Set(mutation.elements);
   const matchingElements = document.querySelectorAll(mutation.selector);
@@ -359,9 +388,30 @@ function refreshElementsSet(mutation: Mutation) {
 }
 
 function revertMutation(mutation: Mutation) {
+  const index = mutations.indexOf(mutation);
+
+  const forwardChanges: Mutation[] = [];
+
+  // need to roll back all mutations in front to ensure anchor elements e.g. insertBeforeNode are in the same place
+  if (mutation.kind === 'position') {
+    for (let i = mutations.length - 1; i > index; i--) {
+      const m = mutations[i];
+      const els = new Set(m.elements);
+      forwardChanges.push(m);
+      revertMutation(m);
+      m.elements = els;
+    }
+  }
+
   mutation.elements.forEach(el => stopMutating(mutation, el));
   mutation.elements.clear();
-  mutations.delete(mutation);
+  mutations.splice(index, 1);
+
+  while (forwardChanges.length > 0) {
+    let m = forwardChanges.pop()!;
+    newMutation(m);
+    m.elements.forEach(el => startMutating(m, el));
+  }
 }
 
 function refreshAllElementSets() {
@@ -419,10 +469,11 @@ function newMutation(m: Mutation): MutationController {
   // Not in a browser
   if (typeof document === 'undefined') return nullController;
   // add to global index of mutations
-  mutations.add(m);
+  mutations.push(m);
   // run refresh on init to establish list of elements associated w/ mutation
   refreshElementsSet(m);
   return {
+    __mutation: m,
     revert: () => {
       revertMutation(m);
     },
@@ -544,6 +595,7 @@ function declarative({
 }
 
 export type MutationController = {
+  __mutation?: Mutation;
   revert: () => void;
 };
 
