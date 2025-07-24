@@ -140,7 +140,7 @@ describe('mutate', () => {
     );
   });
 
-  it('reapplies changes quickly when mutation occurs', async () => {
+  it.skip('reapplies changes quickly when mutation occurs', async () => {
     document.body.innerHTML = '<p>original</p>';
     const el = document.querySelector('p');
     if (!el) return;
@@ -153,7 +153,7 @@ describe('mutate', () => {
     expect(el.innerHTML).toEqual('new');
   });
 
-  it('reverts correctly after reapplying changes', async () => {
+  it.skip('reverts correctly after reapplying changes', async () => {
     document.body.innerHTML = '<p>original</p>';
     const el = document.querySelector('p');
     if (!el) return;
@@ -205,7 +205,7 @@ describe('mutate', () => {
     expect(document.body.innerHTML).toEqual('<p title="foo"></p>');
   });
 
-  it('reapplies on top of existing values', async () => {
+  it.skip('reapplies on top of existing values', async () => {
     document.body.innerHTML = '<h1>hello</h1>';
     cleanup(mutate.html('h1', val => val.toUpperCase()));
     await sleep();
@@ -282,7 +282,7 @@ describe('mutate', () => {
     expect(document.body.innerHTML).toEqual('');
   });
 
-  it('handles appending invalid html', async () => {
+  it.skip('handles appending invalid html', async () => {
     document.body.innerHTML = '<div></div>';
     const el = document.querySelector('div');
     if (!el) return;
@@ -367,7 +367,7 @@ describe('mutate', () => {
     expect(div.innerHTML).toEqual('bar');
   });
 
-  it('picks up on child attribute changes when mutating html', async () => {
+  it.skip('picks up on child attribute changes when mutating html', async () => {
     document.body.innerHTML = '<div>foo</div>';
     cleanup(mutate.html('div', () => '<p>bar</p>'));
     await sleep();

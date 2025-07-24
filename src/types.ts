@@ -44,6 +44,7 @@ type MutationKind = Mutation['kind'];
 
 interface ElementPropertyRecord<T, V> {
   _positionTimeout: NodeJS.Timeout | number | null;
+  _textTimeout: NodeJS.Timeout | number | null;
   observer: MutationObserver;
   originalValue: V;
   virtualValue: V;

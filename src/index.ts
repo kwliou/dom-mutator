@@ -48,6 +48,34 @@ function getElementRecord(element: Element): ElementRecord {
 
   return record;
 }
+
+function stripVisualEditorHighlight(currentValue: any, virtualValue: any) {
+  function helper(value: any) {
+    const tempElement = document.createElement('div');
+    tempElement.innerHTML = value;
+    // Remove the class
+    tempElement
+      .querySelectorAll(
+        '.visual-editing-highlight-hover, .visual-editing-highlight-select'
+      )
+      .forEach(el => {
+        el.classList.remove(
+          'visual-editing-highlight-hover',
+          'visual-editing-highlight-select'
+        );
+      });
+    return tempElement.innerHTML;
+  }
+  if (typeof currentValue !== 'string') {
+    return { currentValue, virtualValue };
+  }
+
+  return {
+    currentValue: helper(currentValue),
+    virtualValue: helper(virtualValue),
+  };
+}
+
 function createElementPropertyRecord(
   el: Element,
   attr: string,
@@ -63,6 +91,7 @@ function createElementPropertyRecord(
     mutations: [],
     el,
     _positionTimeout: null,
+    _textTimeout: null,
     rateLimitCount: 0,
     observer: new MutationObserver(() => {
       // if paused, don't run mutations
@@ -81,6 +110,7 @@ function createElementPropertyRecord(
       }, 1000);
 
       if (attr === 'position' && record._positionTimeout) return;
+      if (attr === 'html' && record._textTimeout) return;
       else if (attr === 'position')
         // enact a 1 second timeout that blocks subsequent firing of the
         // observer until the timeout is complete. This will prevent multiple
@@ -89,6 +119,10 @@ function createElementPropertyRecord(
         record._positionTimeout = setTimeout(() => {
           record._positionTimeout = null;
         }, 1000);
+      // else if (attr === 'html')
+      //   record._textTimeout = setTimeout(() => {
+      //     record._textTimeout = null;
+      //   }, 500);
 
       const currentValue = getCurrentValue(el);
       if (
@@ -98,6 +132,13 @@ function createElementPropertyRecord(
       )
         return;
       if (currentValue === record.virtualValue) return;
+      const { currentValue: cV, virtualValue: vV } = stripVisualEditorHighlight(
+        currentValue,
+        record.virtualValue
+      );
+      if (cV === vV) {
+        return;
+      }
       record.originalValue = currentValue;
       mutationRunner(record);
     }),
