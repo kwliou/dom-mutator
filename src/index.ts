@@ -1,3 +1,20 @@
+import {
+  ElementPosition,
+  ElementRecord,
+  ElementPropertyRecord,
+  HTMLRecord,
+  ClassnameRecord,
+  AttributeRecord,
+  PositionRecord,
+  Mutation,
+  HTMLMutation,
+  ClassnameMutation,
+  AttrMutation,
+  PositionMutation,
+  ElementPositionWithDomNode,
+  ElementPositionWithDomNodeV2,
+} from './types';
+
 export const validAttributeName = /^[a-zA-Z:_][a-zA-Z0-9:_.-]*$/;
 const nullController: MutationController = {
   revert: () => {},
@@ -145,10 +162,50 @@ function attrMutationRunner(record: AttributeRecord) {
   queueIfNeeded(val, record);
 }
 
-function _loadDOMNodes({
-  parentSelector,
-  insertBeforeSelector,
-}: ElementPosition): ElementPositionWithDomNode | null {
+function _loadDOMNodes(
+  props: ElementPosition
+): ElementPositionWithDomNodeV2 | null {
+  if ('insertSelector' in props) {
+    const { insertSelector, direction } = props;
+    const insertNode = document.querySelector<HTMLElement>(insertSelector);
+    if (!insertNode) return null;
+    // we still need to add parentNode/insertBeforeNode to compare to element's current position (getElementPosition)
+    let nodePos;
+    switch (direction) {
+      case 'afterbegin':
+        nodePos = {
+          parentNode: insertNode,
+          insertBeforeNode: insertNode.firstChild,
+        };
+        break;
+      case 'beforeend':
+        nodePos = {
+          parentNode: insertNode,
+          insertBeforeNode: null,
+        };
+        break;
+      case 'afterend':
+        nodePos = {
+          parentNode: insertNode.parentElement as HTMLElement,
+          // should we add another field insertAfterNode for stability?
+          insertBeforeNode: insertNode.nextSibling,
+        };
+        break;
+      case 'beforebegin':
+        nodePos = {
+          parentNode: insertNode.parentElement as HTMLElement,
+          insertBeforeNode: insertNode,
+        };
+    }
+
+    return {
+      ...nodePos,
+      insertNode,
+      direction,
+    };
+  }
+
+  const { parentSelector, insertBeforeSelector } = props;
   const parentNode = document.querySelector<HTMLElement>(parentSelector);
   if (!parentNode) return null;
   const insertBeforeNode = insertBeforeSelector
@@ -190,11 +247,18 @@ function getElementHTMLRecord(element: Element): HTMLRecord {
 const getElementPosition = (el: Element): ElementPositionWithDomNode => {
   return {
     parentNode: el.parentElement as HTMLElement,
-    insertBeforeNode: el.nextElementSibling as HTMLElement | null,
+    insertBeforeNode: el.nextSibling || null,
   };
 };
-const setElementPosition = (el: Element, value: ElementPositionWithDomNode) => {
-  if (
+
+const setElementPosition = (
+  el: Element,
+  value: ElementPositionWithDomNodeV2
+) => {
+  if ('insertNode' in value) {
+    const { insertNode, direction } = value;
+    insertNode.insertAdjacentElement(direction, el);
+  } else if (
     value.insertBeforeNode &&
     !value.parentNode.contains(value.insertBeforeNode)
   ) {
@@ -204,6 +268,7 @@ const setElementPosition = (el: Element, value: ElementPositionWithDomNode) => {
   }
   value.parentNode.insertBefore(el, value.insertBeforeNode);
 };
+
 function getElementPositionRecord(element: Element): PositionRecord {
   const elementRecord = getElementRecord(element);
   if (!elementRecord.position) {
@@ -498,8 +563,7 @@ function declarative({
   action,
   value,
   attribute: attr,
-  parentSelector,
-  insertBeforeSelector,
+  ...pos
 }: DeclarativeMutation): MutationController {
   if (attr === 'html') {
     if (action === 'append') {
@@ -523,11 +587,18 @@ function declarative({
       });
     }
   } else if (attr === 'position') {
-    if (action === 'set' && parentSelector) {
-      return position(selector, () => ({
-        insertBeforeSelector,
-        parentSelector,
-      }));
+    if (action === 'set') {
+      if ('insertSelector' in pos) {
+        return position(selector, () => ({
+          insertSelector: pos.insertSelector,
+          direction: pos.direction,
+        }));
+      } else if ('parentSelector' in pos) {
+        return position(selector, () => ({
+          insertBeforeSelector: pos.insertBeforeSelector,
+          parentSelector: pos.parentSelector,
+        }));
+      }
     }
   } else {
     if (action === 'append') {
@@ -552,9 +623,7 @@ export type DeclarativeMutation = {
   attribute: string;
   action: 'append' | 'set' | 'remove';
   value?: string;
-  parentSelector?: string;
-  insertBeforeSelector?: string;
-};
+} & (ElementPosition | {});
 
 export default {
   html,

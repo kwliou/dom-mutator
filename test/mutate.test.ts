@@ -460,4 +460,88 @@ describe('mutate', () => {
     await sleep();
     expect(document.body.innerHTML).toEqual(initial);
   });
+
+  it('moves elements - inserting before', async () => {
+    const initial =
+      '<div><h1>Hello</h1></div><div class="new-parent"><div class="before-me"></div></div>';
+    document.body.innerHTML = initial;
+
+    cleanup(
+      mutate.position('h1', () => ({
+        insertSelector: '.before-me',
+        direction: 'beforebegin',
+      }))
+    );
+    await sleep();
+    expect(document.body.innerHTML).toEqual(
+      '<div></div><div class="new-parent"><h1>Hello</h1><div class="before-me"></div></div>'
+    );
+
+    revertAll();
+    await sleep();
+    expect(document.body.innerHTML).toEqual(initial);
+  });
+
+  it('moves elements - prepending', async () => {
+    const initial =
+      '<div><h1>Hello</h1></div><div class="new-parent">Test<div class="before-me"></div></div>';
+    document.body.innerHTML = initial;
+
+    cleanup(
+      mutate.position('h1', () => ({
+        insertSelector: '.new-parent',
+        direction: 'afterbegin',
+      }))
+    );
+    await sleep();
+    expect(document.body.innerHTML).toEqual(
+      '<div></div><div class="new-parent"><h1>Hello</h1>Test<div class="before-me"></div></div>'
+    );
+
+    revertAll();
+    await sleep();
+    expect(document.body.innerHTML).toEqual(initial);
+  });
+
+  it('moves elements - appending', async () => {
+    const initial =
+      '<div><h1>Hello</h1></div><div class="new-parent">Test</div>';
+    document.body.innerHTML = initial;
+
+    cleanup(
+      mutate.position('h1', () => ({
+        insertSelector: '.new-parent',
+        direction: 'beforeend',
+      }))
+    );
+    await sleep();
+    expect(document.body.innerHTML).toEqual(
+      '<div></div><div class="new-parent">Test<h1>Hello</h1></div>'
+    );
+
+    revertAll();
+    await sleep();
+    expect(document.body.innerHTML).toEqual(initial);
+  });
+
+  it('moves elements - inserting after', async () => {
+    const initial =
+      '<div><h1>Hello</h1></div><div class="new-parent"><div class="after-me"></div></div>';
+    document.body.innerHTML = initial;
+
+    cleanup(
+      mutate.position('h1', () => ({
+        insertSelector: '.after-me',
+        direction: 'afterend',
+      }))
+    );
+    await sleep();
+    expect(document.body.innerHTML).toEqual(
+      '<div></div><div class="new-parent"><div class="after-me"></div><h1>Hello</h1></div>'
+    );
+
+    revertAll();
+    await sleep();
+    expect(document.body.innerHTML).toEqual(initial);
+  });
 });
